@@ -28,8 +28,10 @@
 #include "functional/tmp.h"
 #ifdef ROCM_FOUND
 #include <hip/hip_cooperative_groups.h>
+#define _WS 64 // Warp size.
 #else
 #include <cooperative_groups.h>
+#define _WS 32 // Warp size.
 #endif
 
 namespace marian {
@@ -72,9 +74,9 @@ struct SharedMemory<double> {
    the overall cost of the algorithm while keeping the work complexity O(n) and
    the step complexity O(log n). (Brent's Theorem optimization)
 
-    Note, this kernel needs a minimum of 64*sizeof(T) bytes of shared memory.
-    In other words if blockSize <= 32, allocate 64*sizeof(T) bytes.
-    If blockSize > 32, allocate blockSize*sizeof(T) bytes.
+    Note, this kernel needs a minimum of 2*_WS*sizeof(T) bytes of shared memory.
+    In other words if blockSize <= _WS, allocate 2*_WS*sizeof(T) bytes.
+    If blockSize > _WS, allocate blockSize*sizeof(T) bytes.
 */
 template <typename T, typename AccType, unsigned int blockSize, bool nIsPow2Greater1, size_t K, class Functor, class AggFunctor>
 __global__ void reduceSinglePass(Functor functor, AccType aggInit, AggFunctor aggFunctor, AccType scale,
@@ -114,35 +116,32 @@ __global__ void reduceSinglePass(Functor functor, AccType aggInit, AggFunctor ag
   cg::sync(cta);
 
   // do reduction in shared mem
-  if ((blockSize >= 512) && (tid < 256)) {
-    sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 256]);
+  if (blockSize >= 512 && (2*_WS) < 512 ) {
+	  if(tid < 256)
+		  sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 256]);
+	  cg::sync(cta);
   }
 
-  cg::sync(cta);
-
-  if ((blockSize >= 256) && (tid < 128)) {
-    sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 128]);
+  if (blockSize >= 256 && (2*_WS) < 256 ) {
+	  if(tid < 128)
+		  sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 128]);
+	  cg::sync(cta);
   }
 
-  cg::sync(cta);
-
-  //
-  // TODO: ROCm most likely benefit from 64-wide reductions.
-  //
-  if ((blockSize >= 128) && (tid < 64)) {
-    sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 64]);
+  if (blockSize >= 128 && (2*_WS) < 128 ) {
+	  if (tid < 64)
+		  sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 64]);
+	  cg::sync(cta);
   }
-
-  cg::sync(cta);
 
   // leverage that blockSize is always pow of 2 so no special logic needed in reduction loop.
-  constexpr int partitionSize = blockSize > 32 ? 32 : blockSize;
+  constexpr int partitionSize = blockSize > _WS ? _WS : blockSize;
   cg::thread_block_tile<partitionSize> tile = cg::tiled_partition<partitionSize>(cta);
 
-  if (cta.thread_rank() < 32) {
+  if (cta.thread_rank() < _WS) {
     // Fetch final intermediate sum from 2nd warp
-    if (blockSize >= 64) 
-      mySum = aggFunctor(mySum, sdata[tid + 32]);
+    if (blockSize >= 2*_WS)
+      mySum = aggFunctor(mySum, sdata[tid + _WS]);
     // reduce final warp using shuffle
     for (int offset = tile.size() / 2; offset > 0; offset /= 2) {
       mySum = aggFunctor(mySum, tile.shfl_down(mySum, offset));
@@ -180,7 +179,7 @@ void reduceSinglePass(Functor functor, AccType aggInit, AggFunctor aggFunctor, A
   int size = full.elements();
   // when there is only one warp per block, we need to allocate two warps
   // worth of shared memory so that we don't index shared memory out of bounds
-  int smemSize = (threads <= 32) ? 2 * threads * sizeof(AccType) : threads * sizeof(AccType);
+  int smemSize = (threads <= _WS) ? 2 * threads * sizeof(AccType) : threads * sizeof(AccType);
   dim3 dimBlock(threads, 1, 1);
   dim3 dimGrid(blocks, 1, 1);
 
