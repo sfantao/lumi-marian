@@ -2,8 +2,11 @@
 #include "tensors/gpu/cuda_helpers.h"
 #include "tensors/allocator.h"
 
+#ifdef ROCM_FOUND
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
-
+#endif
 // GPU implementation of proper Marian top-k operator for TopkNodeOp
 // This file contains a lot of code-duplicaton with src/translator/nth_element.cu
 // the goal is to replace the beam-search specific topk search with this code. 
@@ -23,6 +26,7 @@ const int BLOCK_SIZE = 512;
       sharedValues[tid]  = sharedValues[tid + (n)];   \
     }                                                 \
   }
+
 
 // finds maximum element (first step) 
 template <typename T>

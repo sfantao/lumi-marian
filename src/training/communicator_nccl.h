@@ -13,8 +13,14 @@
 #pragma warning(disable:4505) // "unreferenced local function has been removed" in cuda_fp16.hpp
 #endif
 
+#ifdef ROCM_FOUND
+#include "rccl.h"
+#include <hip/hip_runtime.h>
+#include "hipify.h"
+#else
 #include "nccl.h"
 #include <cuda_runtime.h>
+#endif
 
 #if (NCCL_MAJOR<3 || NCCL_MINOR<2)
 #define ncclGetVersion(pv) (*(pv) = (NCCL_MAJOR * 1000 + NCCL_MINOR * 100 + NCCL_PATCH))

@@ -25,9 +25,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "functional/tmp.h"
+#ifdef ROCM_FOUND
+#include <hip/hip_cooperative_groups.h>
+#else
 #include <cooperative_groups.h>
+#endif
 
 namespace marian {
 
@@ -123,6 +126,9 @@ __global__ void reduceSinglePass(Functor functor, AccType aggInit, AggFunctor ag
 
   cg::sync(cta);
 
+  //
+  // TODO: ROCm most likely benefit from 64-wide reductions.
+  //
   if ((blockSize >= 128) && (tid < 64)) {
     sdata[tid] = mySum = aggFunctor(mySum, sdata[tid + 64]);
   }

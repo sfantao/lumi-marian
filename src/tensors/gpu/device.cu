@@ -1,4 +1,9 @@
+#ifdef ROCM_FOUND
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
+#endif
+
 #include <iostream>
 
 #include "tensors/device.h"
@@ -6,6 +11,7 @@
 
 namespace marian {
 namespace gpu {
+
 
 Device::~Device() {
   // No CUDA error checking as this is a destructor and we cannot do anything about errors anyway.

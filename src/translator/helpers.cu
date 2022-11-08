@@ -1,4 +1,8 @@
+#ifdef ROCM_FOUND
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
+#endif
 #include <limits>
 
 #include "data/types.h"

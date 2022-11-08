@@ -4,8 +4,6 @@ namespace marian {
 
 #ifdef CUDNN
 
-#include <cudnn.h>
-
 #define CUDNN_CALL(x)                 \
   do {                                \
     if((x) != CUDNN_STATUS_SUCCESS) { \

@@ -16,6 +16,13 @@
 #include <functional>
 #include <type_traits>
 
+#ifdef ROCM_FOUND
+#include <immintrin.h>
+#include <hip/hip_runtime.h>
+#define COMPILE_FP16 1
+#include <hip/hip_fp16.h>
+#include "functional/defs.h"
+#else // ROCM_FOUND
 #ifndef __CUDACC__ // NVCC is very unreliable when it comes to CPU intrinsics, we hide them completely from NVCC-compiled code
 #include <immintrin.h>
 #endif
@@ -49,6 +56,7 @@
 #else
 #define COMPILE_FP16 0
 #endif
+#endif //ROCM_FOUND
 
 #ifdef _MSC_VER
 // @BUGBUG: Visual Studio somehow fails on template expansions for float16.

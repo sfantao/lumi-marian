@@ -282,11 +282,12 @@ __global__ void gInsertCols(T* out,
 
       for(int tid = 0; tid < cols; tid += blockDim.x) {
         int i = tid + threadIdx.x;
-        if(i < cols)
+        if(i < cols) {
           if(add)
             rowOut[i] += rowIn[i];
           else
             rowOut[i] = rowIn[i];
+        }
       }
     }
   }
@@ -1596,11 +1597,12 @@ __global__ void gGRUFastBackward(T* outState,
             rowOutXW[l] += (T)dfdxW_x;
           if(outSU)
             rowOutSU[l] += (T)(dfdxW_x * r);
-          if(outB)
+          if(outB) {
             if(final)
               rowOutB[l] += (T)(dfdxW_x * r);
             else
               rowOutB[l] += (T)dfdxW_x;
+          }
         }
       }
     }
@@ -1901,10 +1903,6 @@ void CrossEntropyPickBackward(Tensor out, Tensor adj, Tensor a, Tensor indices, 
 // this is mostly used for diagnostic purposes and gradient clipping
 float L2Norm(Tensor in, Ptr<Allocator> allocator) { // @TODO: reverse order of arguments
   cudaSetDevice(in->getDeviceId().no);
-
-  int size = in->shape().elements();
-  int threads = std::min(MAX_THREADS, size);
-  int blocks  = std::min(MAX_BLOCKS, size / threads + (size % threads != 0));
 
   using namespace functional;
   float l2Norm;

@@ -211,7 +211,7 @@ struct Ops<double> {
 // will still be compiled into the binary by cpu-side gcc/g++
 // __CUDACC__ is defined when compiling with NVCC regardless of device type
 // __CUDA_ARCH__ is defined when compiling device (GPU) code
-#ifndef __CUDACC__
+#if !(defined(__CUDACC__) || defined(ROCM_IS_GPU_BUILD))
 
 #include "3rd_party/sse_mathfun.h"
 
@@ -468,7 +468,7 @@ struct Ops<float32x8> {
 #endif
 #endif // of "#ifndef __CUDACC__"
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(ROCM_IS_GPU_BUILD)
 #if COMPILE_FP16
 
 namespace marian {
@@ -581,6 +581,9 @@ struct Ops<half> {
 template <>
 struct Ops<halfx2> {
 
+  // For ROCm, float literals can be promoted to __half and __half2 which causes ambiguous ctor resolutions.
+  // Hence we use the two-argument versions for halfx2.
+
   static DEVICE_INLINE halfx2 sin(const halfx2& x)  { return h2sin(x); }
   static DEVICE_INLINE halfx2 cos(const halfx2& x)  { return h2cos(x); }
   static DEVICE_INLINE halfx2 tan(const halfx2& x)  { return h2sin(x) / h2cos(x); }
@@ -619,8 +622,8 @@ struct Ops<halfx2> {
 
   static DEVICE_INLINE halfx2 tanh(const halfx2& x) {
     // tanh(x) = 2 * sigmoid(2 * x) - 1
-    const halfx2 one(1.f);
-    const halfx2 two(2.f);
+    const halfx2 one(1.f,1.f);
+    const halfx2 two(2.f,2.f);
     return sub(mul(two, sigmoid(mul(two, x))), one); 
   }
 
@@ -643,7 +646,7 @@ struct Ops<halfx2> {
   static DEVICE_INLINE halfx2 or_(const halfx2& x, const halfx2& y)  { return {x[0] || y[0], x[1] || y[1]}; } // 'or' is used by gcc
   
   static DEVICE_INLINE halfx2 log1p(const halfx2& x) {
-    return log(add(x, halfx2(1.f))); // probably acceptable loss of precision, it's half anyway
+    return log(add(x, halfx2(1.f,1.f))); // probably acceptable loss of precision, it's half anyway
   }
 
   static DEVICE_INLINE halfx2 if_then_else(const halfx2& x, const halfx2& y, const halfx2& z) { 
@@ -663,27 +666,27 @@ struct Ops<halfx2> {
 
   // derivative of Clip, cut-off function
   static DEVICE_INLINE halfx2 bump(const halfx2& x, const halfx2& y)  {
-    const halfx2 zero(0.f);
-    const halfx2 one(1.f);
+    const halfx2 zero(0.f,0.f);
+    const halfx2 one(1.f,1.f);
     return if_then_else(geq(abs(x), y), zero, one);
   }
   static DEVICE_INLINE halfx2 relu(const halfx2& x) {
-    const halfx2 zero(0.f);
+    const halfx2 zero(0.f,0.f);
     return max(x, zero);
   }
   static DEVICE_INLINE halfx2 reluBack(const halfx2& x) {
-    const halfx2 zero(0.f);
+    const halfx2 zero(0.f,0.f);
     return geq(x, zero);
   }
 
   static DEVICE_INLINE halfx2 prelu(const halfx2& x, const halfx2& y)     {
-    const halfx2 zero(0.f);
+    const halfx2 zero(0.f,0.f);
     return if_then_else(gt(x, zero), x , mul(x, y));
   }
 
   static DEVICE_INLINE halfx2 preluBack(const halfx2& x, const halfx2& y) {
-    const halfx2 zero(0.f);
-    const halfx2 one(1.f);
+    const halfx2 zero(0.f,0.f);
+    const halfx2 one(1.f,1.f);
     return if_then_else(gt(x, zero), one, y);
   }
 
@@ -750,7 +753,7 @@ UNARY(sReLUBack,   ReLUback,  Ops<ElementType>::reluBack(x));
 BINARY(sPReLU,     PReLU,     Ops<ElementType>::prelu(x, y));
 BINARY(sPReLUBack, PReLUback, Ops<ElementType>::preluBack(x, y));
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(ROCM_IS_GPU_BUILD)
 // only visible by nvcc
 
 DEVICE_INLINE uint32_t gf2u(float f32) {

@@ -7,7 +7,12 @@
 
 #ifdef CUDNN
 
+#ifdef ROCM_FOUND
+#include "hipify-cudnn.h"
+#include "hipify.h"
+#else
 #include <cudnn.h>
+#endif
 
 namespace marian {
 

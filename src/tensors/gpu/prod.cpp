@@ -3,7 +3,19 @@
 #pragma warning(disable: 4505) // warning C4505: '__float2half_rz': unreferenced local function has been removed (missing 'static inline')
 #endif
 
+#ifdef ROCM_FOUND
+#include <hipblas.h>
+#include "hipify.h"
+
+#undef CUDA_R_32F
+#define CUDA_R_32F HIPBLAS_R_32F
+
+#undef CUDA_R_16F
+#define CUDA_R_16F HIPBLAS_R_16F
+
+#else
 #include <cublas_v2.h>
+#endif
 
 // clang-format off
 #include "tensors/gpu/prod.h"
@@ -11,7 +23,7 @@
 #include "tensors/gpu/cuda_helpers.h"
 // clang-format on
 
-#if CUDA_VERSION >= 11000
+#if CUDA_VERSION >= 11000 && !defined(ROCM_FOUND)
 #include <cublasLt.h>
 #endif
 
@@ -43,7 +55,8 @@ int getAlignmentUpTo256(const void *ptr) {
 // has been passed into the function call and seem to ignore setMathMode. Here we query the used math mode
 // to choose the algorithm.
 static bool tensorOpsEnabled(cublasHandle_t cublasHandle) {
-#if CUDA_VERSION >= 9000
+// ROCm uses matrix cores if it can.
+#if CUDA_VERSION >= 9000 && !defined(ROCM_FOUND)
   cublasMath_t actual = CUBLAS_DEFAULT_MATH;
   cublasGetMathMode(cublasHandle, &actual);
   return actual == CUBLAS_TENSOR_OP_MATH;
@@ -54,7 +67,7 @@ static bool tensorOpsEnabled(cublasHandle_t cublasHandle) {
 
 static void setTensorMode(cublasHandle_t cublasHandle) {
   cublasHandle; // fool warnings
-#if CUDA_VERSION >= 9000
+#if CUDA_VERSION >= 9000 && !defined(ROCM_FOUND)
   static int mode = 0;  // 1: use TC; -1: do not use TC; 0: not set yet
   if (mode == 0) { // multi-thread note: this is sort-of thread-safe, since multiple threads would determine the same value
     const char* var = getenv("ENABLE_CUBLAS_TENSOR_OP_MATH_FP32");
@@ -83,7 +96,7 @@ static void setTensorMode(cublasHandle_t cublasHandle) {
 
 static void unsetTensorMode(cublasHandle_t cublasHandle) {
   cublasHandle; // fool warnings
-#if CUDA_VERSION >= 9000
+#if CUDA_VERSION >= 9000 && !defined(ROCM_FOUND)
   CUBLAS_CHECK(cublasSetMathMode(cublasHandle, CUBLAS_DEFAULT_MATH));
 #endif
 }
@@ -574,7 +587,7 @@ void ProdBatchedLegacy(marian::Tensor C,
 }
 
 
-#if CUDA_VERSION >= 11000 // Earlier versions of cublasLT do not support bias addition for fp32 and fp16.
+#if CUDA_VERSION >= 11000 && !defined(ROCM_FOUND)// Earlier versions of cublasLT do not support bias addition for fp32 and fp16.
 
 static cublasStatus_t cublasLtAffineHelper(cublasLtHandle_t ltHandle, cublasOperation_t transA, cublasOperation_t transB,
                                            cudaDataType matrixType,

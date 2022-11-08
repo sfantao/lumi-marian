@@ -174,28 +174,69 @@ target_link_libraries(marian ${EXT_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 set_target_properties(marian PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set_target_properties(marian PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
-if(CUDA_FOUND)
-  cuda_add_library(marian_cuda
-    tensors/gpu/device.cu
-    tensors/gpu/hash.cu
-    tensors/gpu/algorithm.cu
-    tensors/gpu/prod.cpp
-    tensors/gpu/prod.cu
-    tensors/gpu/prod_sparse.cpp
-    tensors/gpu/topk.cu
-    tensors/gpu/element.cu
-    tensors/gpu/add.cu
-    tensors/gpu/add_all.cu
-    tensors/gpu/tensor_operators.cu
-    tensors/gpu/cudnn_wrappers.cu
-    translator/nth_element.cu
-    translator/helpers.cu
-    STATIC)
+if(CUDA_FOUND OR ROCM_FOUND)
+  
+  if(CUDA_FOUND)
+    cuda_add_library(marian_cuda
+      tensors/gpu/device.cu
+      tensors/gpu/hash.cu
+      tensors/gpu/algorithm.cu
+      tensors/gpu/prod.cpp
+      tensors/gpu/prod.cu
+      tensors/gpu/prod_sparse.cpp
+      tensors/gpu/topk.cu
+      tensors/gpu/element.cu
+      tensors/gpu/add.cu
+      tensors/gpu/add_all.cu
+      tensors/gpu/tensor_operators.cu
+      tensors/gpu/cudnn_wrappers.cu
+      translator/nth_element.cu
+      translator/helpers.cu
+      STATIC)
+  endif()
+  
+  if(ROCM_FOUND)
+  
+    set_source_files_properties(
+      tensors/gpu/device.cu
+      tensors/gpu/hash.cu
+      tensors/gpu/algorithm.cu
+      tensors/gpu/prod.cu
+      tensors/gpu/topk.cu
+      tensors/gpu/element.cu
+      tensors/gpu/add.cu
+      tensors/gpu/add_all.cu
+      tensors/gpu/tensor_operators.cu
+      tensors/gpu/cudnn_wrappers.cu
+      translator/nth_element.cu
+      translator/helpers.cu
+      rocm/hipify-cudnn.hip PROPERTIES LANGUAGE CXX)
+    
+    add_library(marian_cuda STATIC
+      tensors/gpu/device.cu
+      tensors/gpu/hash.cu
+      tensors/gpu/algorithm.cu
+      tensors/gpu/prod.cpp
+      tensors/gpu/prod.cu
+      tensors/gpu/prod_sparse.cpp
+      tensors/gpu/topk.cu
+      tensors/gpu/element.cu
+      tensors/gpu/add.cu
+      tensors/gpu/add_all.cu
+      tensors/gpu/tensor_operators.cu
+      tensors/gpu/cudnn_wrappers.cu
+      translator/nth_element.cu
+      translator/helpers.cu
+      rocm/hipify-cudnn.hip)
+      
+    target_link_libraries(marian_cuda PRIVATE hip::device)
+    target_compile_definitions(marian_cuda PRIVATE ${ROCM_EXTRA_DEFS})
+  endif()
 
-  target_compile_options(marian_cuda PRIVATE ${ALL_WARNINGS})
+  target_compile_options(marian_cuda PRIVATE ${ALL_WARNINGS} ${ROCM_EXTRA_DEFS} ${ROCM_EXTRA_FLAGS})
   # make sure all local dependencies are installed first before this is built
   add_dependencies(marian_cuda 3rd_party_installs)
-
+  
   # Add the CUDA Marian dependency to the core Marian target
   target_link_libraries(marian marian_cuda)
 
@@ -205,7 +246,7 @@ if(CUDA_FOUND)
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
   endif(GENERATE_MARIAN_INSTALL_TARGETS)
-endif(CUDA_FOUND)
+endif(CUDA_FOUND OR ROCM_FOUND)
 
 # If this option is ON, only build the Marian library. This is useful if this project is included
 # as a sub-project of another build system that is only interested in the Marian output library.
@@ -276,9 +317,9 @@ if (NOT COMPILE_LIBRARY_ONLY)
 
   foreach(exec ${EXECUTABLES})
     target_link_libraries(${exec} marian)
-    if(CUDA_FOUND)
+    if(CUDA_FOUND OR ROCM_FOUND)
       target_link_libraries(${exec} marian_cuda)
-    endif(CUDA_FOUND)
+    endif(CUDA_FOUND OR ROCM_FOUND)
     set_target_properties(${exec} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
   endforeach(exec)
 endif(NOT COMPILE_LIBRARY_ONLY)

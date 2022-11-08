@@ -5,10 +5,18 @@
 #include "tensors/gpu/cuda_helpers.h"
 #include "common/logging.h"
 
+#ifdef ROCM_FOUND
+#include <hipblas.h>
+#include <hip/hip_runtime.h>
+#include <hiprand.h>
+#include <hipsparse.h>
+#include "hipify.h"
+#else
 #include <cublas_v2.h>
 #include <cuda.h>
 #include <curand.h>
 #include <cusparse.h>
+#endif
 
 namespace marian {
 namespace gpu {

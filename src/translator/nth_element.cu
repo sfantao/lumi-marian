@@ -7,7 +7,12 @@
 
 #include "translator/nth_element.h"
 
+#ifdef ROCM_FOUND
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
+#endif
+
 #include "tensors/gpu/cuda_helpers.h"
 
 namespace marian {

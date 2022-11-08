@@ -192,6 +192,10 @@ if(CUDA_FOUND)
   endif(USE_NCCL)
 endif(CUDA_FOUND)
 
+#
+# RCCL is generally available with ROCm.
+#
+
 # @TODO: do the same for SentencePiece, Protobuf etc.
 # make clean will clean "${CMAKE_BINARY_DIR}/local"
 set_directory_properties(PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${CMAKE_BINARY_DIR}/local)

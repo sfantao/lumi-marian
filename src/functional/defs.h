@@ -1,8 +1,13 @@
 #pragma once
 
-#ifdef __CUDACC__  // Compiling with NVCC, host or device code
+#if defined(__CUDACC__) || defined(ROCM_IS_GPU_BUILD) // Compiling with NVCC, host or device code
 
+#ifdef ROCM_IS_GPU_BUILD
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
+#endif //ROCM_IS_GPU_BUILD
+
 #define HOST __host__
 #define DEVICE __device__
 #define DEVICE_INLINE __device__ inline

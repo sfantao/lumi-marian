@@ -5,7 +5,11 @@
 #include <cstdint>
 
 #if COMPILE_FP16
+#ifdef ROCM_FOUND
+#include <hip/hip_fp16.h>
+#else
 #include <cuda_fp16.h>
+#endif
 #endif
 
 namespace marian {

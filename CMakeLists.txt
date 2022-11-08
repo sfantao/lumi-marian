@@ -12,8 +12,8 @@ set(BUILD_ARCH native CACHE STRING "Compile for this CPU architecture.")
 
 # Custom CMake options
 option(COMPILE_CPU "Compile CPU version" ON)
-option(COMPILE_CUDA "Compile GPU version" ON)
-option(COMPILE_EXAMPLES "Compile examples" OFF)
+option(COMPILE_CUDA "Compile CUDA GPU version" ON)
+option(COMPILE_ROCM "Compile ROCm GPU version" OFF)
 option(COMPILE_SERVER "Compile marian-server" OFF)
 option(COMPILE_TESTS "Compile tests" OFF)
 if(APPLE)
@@ -80,6 +80,19 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+
+###############################################################################
+# Check if we are building to a single GPU type
+if(COMPILE_CUDA AND COMPILE_ROCM)
+  message(FATAL_ERROR "FATAL ERROR: Only a single GPU implementation is supported: set either COMPILE_CUDA or COMPILE_ROCM but not both.")
+endif()
+
+if(COMPILE_CUDA OR COMPILE_ROCM)
+  set(COMPILE_GPU ON)
+else()
+  set(COMPILE_GPU OFF)
+endif()
+
 ###############################################################################
 # Set compilation flags
 if(MSVC)
@@ -137,6 +150,7 @@ else(MSVC)
   # only by used with BUILD_ARCH=native. For overridden BUILD_ARCH we
   # force intrinsics as set in the options.
   set(INTRINSICS "")
+  set(INTRINSICS_HIP "")
   list(APPEND INTRINSICS_NVCC)
 
   option(COMPILE_SSE2   "Compile CPU code with SSE2 support"   ON)
@@ -210,6 +224,10 @@ else(MSVC)
       set(INTRINSICS "${INTRINSICS} -mavx512f")
       list(APPEND INTRINSICS_NVCC -Xcompiler\ -mavx512f)
     endif(COMPILE_AVX512)
+    
+    # HIP builds should be able to leverage the intrinsics for the host compiler.
+    set(INTRINSICS_HIP "${INTRINSICS}")
+    
   endif()
 
   if(USE_FBGEMM)
@@ -217,7 +235,7 @@ else(MSVC)
     add_definitions(-DUSE_FBGEMM=1)
   endif(USE_FBGEMM)
 
-  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0)
+  if (COMPILE_CUDA AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0)
     # Clang-10.0.0 complains when CUDA is newer than 10.1
     set(CLANG_IGNORE_UNKNOWN_CUDA "-Wno-unknown-warning-option -Wno-unknown-cuda-version")
   endif()
@@ -460,11 +478,119 @@ OR compile the CPU-only version of Marian with
   message(FATAL_ERROR "FATAL ERROR: No suitable CUDA library found.")
 endif(CUDA_FOUND)
 
-else(COMPILE_CUDA)
-  message(WARNING "COMPILE_CUDA=off : Building only CPU version")
 endif(COMPILE_CUDA)
 
+###############################################################################
+if(COMPILE_ROCM)
+
+if(MSVC OR WIN32)
+  message(FATAL_ERROR "FATAL ERROR: ROCm builds do not support MSVC or Windows.")
+endif()
+
+if(USE_STATIC_LIBS)
+  # link statically to stdlib libraries
+  set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+
+  # look for libraries that have .a suffix
+  set(_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a _static.a)
+endif()
+
+option(COMPILE_MI100 "Enable ROCm build for AMD MI100 GPU" OFF)
+option(COMPILE_MI210 "Enable ROCm build for AMD MI210 GPU" OFF)
+option(COMPILE_MI250 "Enable ROCm build for AMD MI250 GPU" OFF)
+option(COMPILE_MI250X "Enable ROCm build for AMD MI250X GPU" ON)
+set(COMPILE_ROCM_TARGETS "")
+
+if(COMPILE_MI100)
+  message(STATUS "Compiling code for AMD MI100 GPUs")
+  LIST(APPEND COMPILE_ROCM_TARGETS gfx908)
+endif()
+if(COMPILE_MI210 OR COMPILE_MI250 OR COMPILE_MI250X)
+  message(STATUS "Compiling code for AMD MI210/MI250/MI250X GPUs")
+  LIST(APPEND COMPILE_ROCM_TARGETS gfx90a)
+endif()
+
+set(CMAKE_HIP_ARCHITECTURES "${COMPILE_ROCM_TARGETS}")
+set(GPU_TARGETS "${COMPILE_ROCM_TARGETS}")
+mark_as_advanced(GPU_TARGETS)
+mark_as_advanced(CMAKE_HIP_ARCHITECTURES)
+message(STATUS "ROCm build targeting GPU Architectures: ${GPU_TARGETS}")
+
+if(DEFINED ENV{ROCM_PATH})
+  set(ROCM_PATH "$ENV{ROCM_PATH}")
+else()
+  set(ROCM_PATH "/opt/rocm")
+endif()
+
+message(STATUS "ROCm install detected in ${ROCM_PATH}")
+list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH}/hip ${ROCM_PATH})
+list(APPEND CMAKE_MODULE_PATH ${ROCM_PATH}/hip/cmake ${ROCM_PATH})
+
+include(CheckLanguage)
+check_language(HIP)
+
+find_package(HIP)
+if(HIP_FOUND)
+    message(STATUS "Found HIP: " ${HIP_VERSION})
+else()
+    message(FATAL_ERROR "Could not find HIP.")
+endif()
+
+find_package(hiprand REQUIRED)
+find_package(hipblas REQUIRED)
+find_package(hipsparse REQUIRED)
+
+# TODO: Eventually report minimum support CMake version.
+#
+
+set(EXT_LIBS ${EXT_LIBS} hip::host hiprand hipblas hipsparse)
+
+if(USE_CUDNN)
+  find_package(miopen REQUIRED)
+  set(EXT_LIBS ${EXT_LIBS} MIOpen)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCUDNN")
+    
+endif(USE_CUDNN)
+
+#
+# We preserve CUDA_FOUND macro to activate CUDA code that would end up
+# being hipified by macro replacement. If ROCM_FOUND is defined then
+# CUDA_FOUND interpretation is that a GPU build is enabled.
+#
+# TODO: revisit and decide whether on ROCM_FOUND should be define and
+# modify the code accordingly. 
+#
+# We aim at preserving CUDA support for the highest version in the code
+# currently 11070.
+add_definitions(-DCUDA_FOUND -DROCM_FOUND -DCUDA_VERSION=11070)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCUDA_FOUND -DROCM_FOUND -DCUDA_VERSION=11070")
+list(APPEND ROCM_EXTRA_DEFS -DCUDA_FOUND -DROCM_FOUND -DCUDA_VERSION=11070 -DROCM_IS_GPU_BUILD)
+
+if(USE_NCCL)
+  find_package(rccl REQUIRED)
+  set(EXT_LIBS ${EXT_LIBS} rccl)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_NCCL")
+endif(USE_NCCL)
+
+if(USE_STATIC_LIBS)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
+
+# Add the hipification headers location.
+include_directories(${CMAKE_SOURCE_DIR}/src/rocm) 
+
+set(ROCM_FOUND TRUE)
+
+endif(COMPILE_ROCM)
+
+###############################################################################
+if(NOT (COMPILE_CUDA OR COMPILE_ROCM))
+  message(WARNING "COMPILE_CUDA=off and COMPILE_ROCm=off : Building only CPU version")
+endif()
+
 # TODO: make compatible with older CUDA versions
+if(COMPILE_CUDA)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   list(APPEND CUDA_NVCC_FLAGS --default-stream per-thread; -O0; -g; --use_fast_math; ${COMPUTE})
 else(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -477,8 +603,22 @@ if(NOT MSVC)
 else()
   list(APPEND CUDA_NVCC_FLAGS -Xcompiler\ /FS; -Xcompiler\ /MT$<$<CONFIG:Debug>:d>; )
 endif()
+endif(COMPILE_CUDA)
+
+if(COMPILE_ROCM)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O0; -g; -ffast-math; ${COMPUTE})
+else(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O3; -g; -ffast-math; ${COMPUTE})
+endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+
+# @TODO: add warnings here too
+list(APPEND ROCM_EXTRA_FLAGS -std=c++11; -fPIC -Wno-unused-result; -Wno-deprecated; -Wno-pragmas; -Wno-unused-value; -Wno-unused-command-line-argument; -Wno-unused-const-variable; -Werror;)
+list(APPEND ROCM_EXTRA_FLAGS ${INTRINSICS_HIP})
+endif(COMPILE_ROCM)
 
 list(REMOVE_DUPLICATES CUDA_NVCC_FLAGS)
+list(REMOVE_DUPLICATES ROCM_EXTRA_FLAGS)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
 if(USE_STATIC_LIBS)
@@ -583,9 +723,11 @@ if(DETERMINISTIC)
   message(WARNING "Option DETERMINISTIC=ON: Trying to make training as deterministic as possible, may result in slow-down")
   add_definitions(-DDETERMINISTIC=1)
   list(APPEND CUDA_NVCC_FLAGS -DDETERMINISTIC=1; )
+  list(APPEND ROCM_EXTRA_DEFS -DDETERMINISTIC=1; )
 else()
   add_definitions(-DDETERMINISTIC=0)
   list(APPEND CUDA_NVCC_FLAGS -DDETERMINISTIC=0; )
+  list(APPEND ROCM_EXTRA_DEFS -DDETERMINISTIC=0; )
 endif()
 
 # Find MPI

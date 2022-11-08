@@ -2,10 +2,18 @@
 #include "tensors/tensor.h"
 #include "tensors/tensor_operators.h"
 
+
+
 #ifdef CUDA_FOUND
 #include "gpu/cuda_helpers.h"
+#ifdef ROCM_FOUND
+#include <hiprand.h>
+#include "hipify.h"
+#else
 #include <curand.h>
 #endif
+#endif
+
 
 namespace marian {
 

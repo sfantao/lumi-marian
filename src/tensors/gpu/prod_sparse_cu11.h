@@ -2,8 +2,14 @@
 #pragma warning(disable: 4505) // warning C4505: '__float2half_rz': unreferenced local function has been removed (missing 'static inline')
 #endif
 
+#ifdef ROCM_FOUND
+#include <hipblas.h>
+#include <hipsparse.h>
+#include "hipify.h"
+#else
 #include <cublas_v2.h>
 #include <cusparse.h>
+#endif
 
 // clang-format off
 #include "tensors/gpu/prod.h"

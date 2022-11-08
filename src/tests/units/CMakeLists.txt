@@ -13,11 +13,11 @@ set(UNIT_TESTS
 foreach(test ${UNIT_TESTS})
   add_executable("run_${test}" run_tests.cpp "${test}.cpp")
 
-  if(CUDA_FOUND)
+  if(CUDA_FOUND OR ROCM_FOUND)
     target_link_libraries("run_${test}" ${EXT_LIBS} marian ${EXT_LIBS} marian_cuda ${EXT_LIBS} Catch)
-  else(CUDA_FOUND)
+  else(CUDA_FOUND OR ROCM_FOUND)
     target_link_libraries("run_${test}" marian ${EXT_LIBS} Catch)
-  endif(CUDA_FOUND)
+  endif(CUDA_FOUND OR ROCM_FOUND)
 
   if(MSVC)
     # Disable C4305: truncation from 'double' to '_Ty'

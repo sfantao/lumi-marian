@@ -2,7 +2,12 @@
 #include "common/logging.h"
 #include "common/types.h"
 
+#ifdef ROCM_FOUND
+#include <hip/hip_runtime.h>
+#include "hipify.h"
+#else
 #include <cuda_runtime.h>
+#endif
 
 // template <> inline bool matchType<__half>(Type type)  { return type == Type::float16; }
 // template <> inline std::string request<__half>()  { return "float16"; }
