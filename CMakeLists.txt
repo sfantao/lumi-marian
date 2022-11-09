@@ -511,9 +511,13 @@ if(COMPILE_MI210 OR COMPILE_MI250 OR COMPILE_MI250X)
   LIST(APPEND COMPILE_ROCM_TARGETS gfx90a)
 endif()
 
+# We adopt the ON/OFF convention to set targets, so we won't use user provided variables. 
+set(GPU_TARGETS "${COMPILE_ROCM_TARGETS}" CACHE INTERNAL "GPU targets to compile for")
+set(AMDGPU_TARGETS "${COMPILE_ROCM_TARGETS}" CACHE INTERNAL "AMD GPU targets to compile for")
 set(CMAKE_HIP_ARCHITECTURES "${COMPILE_ROCM_TARGETS}")
-set(GPU_TARGETS "${COMPILE_ROCM_TARGETS}")
+
 mark_as_advanced(GPU_TARGETS)
+mark_as_advanced(AMDGPU_TARGETS)
 mark_as_advanced(CMAKE_HIP_ARCHITECTURES)
 message(STATUS "ROCm build targeting GPU Architectures: ${GPU_TARGETS}")
 
