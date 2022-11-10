@@ -1112,6 +1112,7 @@ TEST_CASE("Expression graph supports basic math operations (gpu fp16)", "[operat
 #endif
 #endif
 
+#ifndef ROCM_FOUND // ROCm hiprand CPU generator doesn't have any implementation yet.
 #ifdef BLAS_FOUND
 TEST_CASE("Expression graph supports basic math operations (cpu)", "[operator]") {
   tests<float>(DeviceType::cpu);
@@ -1171,5 +1172,6 @@ TEST_CASE("Compare aggregate operator", "[graph]") {
   }
 }
 
-  #endif
-  #endif
+#endif
+#endif
+#endif

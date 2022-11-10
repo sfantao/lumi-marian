@@ -72,6 +72,7 @@ TEST_CASE("Expression graph can be initialized with constant values",
 }
 #endif
 
+#ifndef ROCM_FOUND // ROCm hiprand CPU generator doesn't have any implementation yet.
 TEST_CASE("Graph device is set (cpu)", "[graph]") {
   auto graph = New<ExpressionGraph>();
 
@@ -121,3 +122,4 @@ TEST_CASE("Expression graph can be initialized with constant values (cpu)",
     REQUIRE(values == v);
   }
 }
+#endif

@@ -11,6 +11,7 @@
 
 using namespace marian;
 
+
 template <typename T>
 void tests(DeviceType type, Type floatType = Type::float32) {
 
@@ -142,8 +143,10 @@ TEST_CASE("Model components, Attention (gpu, fp16)", "[attention]") {
 #endif
 #endif
 
+#ifndef ROCM_FOUND // ROCm hiprand CPU generator doesn't have any implementation yet.
 #ifdef BLAS_FOUND
 TEST_CASE("Model components, Attention (cpu)", "[attention]") {
   tests<float>(DeviceType::cpu);
 }
+#endif
 #endif

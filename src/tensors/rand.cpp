@@ -82,6 +82,9 @@ CurandRandomGenerator::CurandRandomGenerator(size_t seed, DeviceId deviceId)
       CURAND_CHECK(curandCreateGenerator(&generator_, CURAND_RNG_PSEUDO_DEFAULT));
     }
     else {
+#ifdef ROCM_FOUND
+      ABORT_IF(true, "curandCreateGeneratorHost ROCm version does not have any generators implemented yet.");
+#endif
       CURAND_CHECK(curandCreateGeneratorHost(&generator_, CURAND_RNG_PSEUDO_DEFAULT));
     }
     CURAND_CHECK(curandSetPseudoRandomGeneratorSeed(generator_, seed_));

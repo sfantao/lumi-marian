@@ -611,9 +611,9 @@ endif(COMPILE_CUDA)
 
 if(COMPILE_ROCM)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O0; -g; -ffast-math; ${COMPUTE})
+  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O0; -g; -ggdb; -ffast-math; ${COMPUTE})
 else(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O3; -g; -ffast-math; ${COMPUTE})
+  list(APPEND ROCM_EXTRA_FLAGS -fgpu-default-stream=per-thread; -O3; -g; -ggdb; -ffast-math; ${COMPUTE})
 endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
 # @TODO: add warnings here too

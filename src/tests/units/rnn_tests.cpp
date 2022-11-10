@@ -339,8 +339,10 @@ TEST_CASE("Model components, RNN etc. (gpu, fp16)", "[model]") {
 #endif
 #endif
 
+#ifndef ROCM_FOUND // ROCm hiprand CPU generator doesn't have any implementation yet.
 #ifdef BLAS_FOUND
 TEST_CASE("Model components, RNN etc. (cpu)", "[model]") {
   tests<float>(DeviceType::cpu);
 }
+#endif
 #endif
