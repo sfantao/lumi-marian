@@ -507,6 +507,11 @@ void tests(DeviceType device, Type floatType = Type::float32) {
 
   // Currently no support for CPU
   // @TODO: support for fp16 is done internally via cast to fp16, not efficient.
+#ifdef ROCM_FOUND
+  // hipSparse does not support half types for the matrix operations this
+  // section requires.
+  if(floatType != Type::float16)
+#endif
   if(device == DeviceType::gpu) {
     SECTION("csr-dot product") {
       graph->clear();
